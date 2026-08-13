@@ -1,29 +1,21 @@
 import datetime
 import urllib.parse
+from geopy.geocoders import Nominatim
 import pandas as pd
 from PIL import Image
 from PIL.ExifTags import GPSTAGS, TAGS
 import streamlit as st
 from ultralytics import YOLO
 
-# Mobile & Desktop Responsive Configuration
-st.set_page_config(
-    page_title="Pothole Detection", layout="centered", page_icon="🛣️"
-)
-
+# Page Configuration
+st.set_page_config(page_title="Pothole Detection", layout="wide")
 st.title("🛣️ Road Safety Pothole Alert System")
 
-
-# Load Model safely with caching
-@st.cache_resource
-def load_yolo_model():
-    return YOLO("best.pt")
+# 1. Load YOLO Model
+model = YOLO("best.pt")
 
 
-model = load_yolo_model()
-
-
-# Extract GPS Metadata from Image
+# 2. Extract GPS Metadata from Image
 def get_gps_data(image):
     try:
         exif_data = image._getexif()
@@ -44,22 +36,20 @@ def get_gps_data(image):
             return d + (m / 60.0) + (s / 3600.0)
 
         lat = convert_to_degrees(gps_info["GPSLatitude"])
-        if gps_info.get("GPSLatitudeRef") != "N":
+        if gps_info["GPSLatitudeRef"] != "N":
             lat = -lat
         lng = convert_to_degrees(gps_info["GPSLongitude"])
-        if gps_info.get("GPSLongitudeRef") != "E":
+        if gps_info["GPSLongitudeRef"] != "E":
             lng = -lng
         return lat, lng
     except Exception:
         return None, None
 
 
-# Input Selection
+# 3. UI - Input Selection
 st.subheader("📸 Choose Input Method")
 option = st.radio(
-    "Select input source:",
-    ("Upload File", "Use Camera"),
-    horizontal=True,
+    "Select how to provide the image:", ("Upload File", "Use Camera")
 )
 
 image_source = None
@@ -72,49 +62,53 @@ else:
 
 if image_source is not None:
     image = Image.open(image_source)
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Original Image")
+        st.image(image, use_container_width=True)
 
     # YOLO Detection
     results = model(image)
     res_plotted = results[0].plot()
     pothole_count = len(results[0].boxes)
 
-    # Extract Location
+    # Extract Location & Dynamic Area
     lat, lng = get_gps_data(image)
 
-    if not lat or not lng:
-        lat, lng = 16.8073, 81.5316  # Default Coordinates
+    if lat and lng:
+        try:
+            geolocator = Nominatim(user_agent="pothole_detector")
+            location = geolocator.reverse(f"{lat}, {lng}")
+            area_name = location.address if location else "Local Street, India"
+        except Exception:
+            area_name = "Detected GPS Location, India"
+    else:
+        area_name = "Local Area, Andhra Pradesh"
+        lat, lng = 16.8073, 81.5316
 
-    area_name = "Local Area, Andhra Pradesh"
+    with col2:
+        st.subheader("Detection")
+        st.image(res_plotted, use_container_width=True)
 
-    # Mobile Friendly Tabs
-    tab1, tab2 = st.tabs(["🖼️ Detection Result", "📍 Map Location"])
-
-    with tab1:
-        st.image(
-            res_plotted,
-            caption=f"Detected Potholes: {pothole_count}",
-            use_container_width=True,
-        )
-
-    with tab2:
-        st.write(f"📍 **Area:** {area_name}")
-        st.write(f"🌐 **Latitude:** {lat} | **Longitude:** {lng}")
-        map_df = pd.DataFrame({"latitude": [lat], "longitude": [lng]})
-        st.map(map_df, zoom=13)
-
-    # Dynamic Alert Display
+    # Dynamic Alert Banner & Coordinates Display
     st.warning(
         f"🚨 ALERT: {pothole_count} Pothole(s) detected in {area_name}!"
     )
+    st.write(f"📍 **Area:** {area_name}")
+    st.write(f"🌐 **Latitude:** {lat} | **Longitude:** {lng}")
 
-    # Email Dispatch Section
-    st.markdown("---")
+    map_df = pd.DataFrame({"latitude": [lat], "longitude": [lng]})
+    st.map(map_df, zoom=13)
+
+    # Report Dispatch Section
     st.subheader("📢 Report to Authority")
     auth_email = st.text_input(
-        "Authority Email (Receiver):", value="sruthi.durga07@gmail.com"
+        "Enter Authority Email Address (Receiver):",
+        value="sruthi.durga07@gmail.com",
     )
 
-    if st.button("🚀 Send Report", use_container_width=True):
+    if st.button("🚀 Send Report"):
         if not auth_email:
             st.warning("⚠️ Please enter a receiver email address.")
         else:
@@ -131,8 +125,8 @@ Please initiate road maintenance action immediately."""
 
             gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={auth_email}&su={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
 
-            st.success("✅ Email Alert Generated!")
+            st.success("✅ Email Alert Generated Successfully!")
             st.markdown(
-                f'<a href="{gmail_url}" target="_blank" style="display: block; width: 100%; text-align: center; padding: 14px; background-color: #28a745; color: white; text-decoration: none; font-weight: bold; font-size: 16px; border-radius: 8px;">✉️ Click Here to Dispatch Email Alert</a>',
+                f'<a href="{gmail_url}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #28a745; color: white; text-decoration: none; font-weight: bold; border-radius: 6px;">✉️ Click Here to Dispatch Email Alert</a>',
                 unsafe_allow_html=True,
             )
