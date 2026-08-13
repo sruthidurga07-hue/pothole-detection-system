@@ -4,3 +4,4 @@ pillow
 pandas
 geopy
 twilio
+opencv-python-headles
