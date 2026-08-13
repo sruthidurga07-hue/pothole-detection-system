@@ -1,6 +1,6 @@
 streamlit
 ulralytics
-opoencv-python-headless
 pillow
 pandas
 geopy
+twilio
