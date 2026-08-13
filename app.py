@@ -125,8 +125,5 @@ Please initiate road maintenance action immediately."""
 
             gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={auth_email}&su={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
 
-            st.success("✅ Email Alert Generated Successfully!")
-            st.markdown(
-                f'<a href="{gmail_url}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #28a745; color: white; text-decoration: none; font-weight: bold; border-radius: 6px;">✉️ Click Here to Dispatch Email Alert</a>',
-                unsafe_allow_html=True,
-            )
+            st.link_button("✉️ Click Here to Dispatch Email Alert", gmail_url, use_container_width=True)
+            
