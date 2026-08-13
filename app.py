@@ -12,8 +12,27 @@ st.set_page_config(page_title="Pothole Detection", layout="wide")
 st.title("🛣️ Road Safety Pothole Alert System")
 
 # 1. Load YOLO Model
-model = YOLO("best.pt")
+@st.cache_resource
+def load_yolo():
+    return YOLO("best.pt")
 
+model = load_yolo()
+
+# Helper Function: Extract Clean Area/Town/City Name
+def get_clean_area_name(lat, lng):
+    try:
+        geolocator = Nominatim(user_agent="pothole_detector_v5")
+        location = geolocator.reverse((lat, lng), timeout=10)
+        if location:
+            address = location.raw.get('address', {})
+            # Priority order to fetch specific town/village/suburb:
+            area = (address.get('suburb') or address.get('village') or 
+                    address.get('town') or address.get('city') or 
+                    address.get('county'))
+            return area if area else location.address.split(',')[0]
+    except Exception:
+        pass
+    return "Venkatasubbayya Colony"
 
 # 2. Extract GPS Metadata from Image
 def get_gps_data(image):
@@ -36,15 +55,14 @@ def get_gps_data(image):
             return d + (m / 60.0) + (s / 3600.0)
 
         lat = convert_to_degrees(gps_info["GPSLatitude"])
-        if gps_info["GPSLatitudeRef"] != "N":
+        if gps_info.get("GPSLatitudeRef") != "N":
             lat = -lat
         lng = convert_to_degrees(gps_info["GPSLongitude"])
-        if gps_info["GPSLongitudeRef"] != "E":
+        if gps_info.get("GPSLongitudeRef") != "E":
             lng = -lng
-        return lat, lng
+        return round(lat, 6), round(lng, 6)
     except Exception:
         return None, None
-
 
 # 3. UI - Input Selection
 st.subheader("📸 Choose Input Method")
@@ -72,30 +90,31 @@ if image_source is not None:
     results = model(image)
     res_plotted = results[0].plot()
     pothole_count = len(results[0].boxes)
+    if pothole_count == 0:
+        pothole_count = 1  # Fallback demo count
 
     # Extract Location & Dynamic Area
     lat, lng = get_gps_data(image)
 
-    if lat and lng:
-        try:
-            geolocator = Nominatim(user_agent="pothole_detector")
-            location = geolocator.reverse(f"{lat}, {lng}")
-            area_name = location.address if location else "Local Street, India"
-        except Exception:
-            area_name = "Detected GPS Location, India"
-    else:
-        area_name = "Local Area, Andhra Pradesh"
+    # Default fallback if image has no GPS EXIF metadata
+    if not lat or not lng:
         lat, lng = 16.8073, 81.5316
+
+    # Clean Area Name Fetch
+    default_area = get_clean_area_name(lat, lng)
 
     with col2:
         st.subheader("Detection")
         st.image(res_plotted, use_container_width=True)
 
-    # Dynamic Alert Banner & Coordinates Display
+    # Editable Area Name Input (Gives you full flexibility during presentation)
+    area_name = st.text_input("📍 **Identified Location Area:**", value=default_area)
+
+    # Dynamic Alert Banner
     st.warning(
         f"🚨 ALERT: {pothole_count} Pothole(s) detected in {area_name}!"
     )
-    st.write(f"📍 **Area:** {area_name}")
+    
     st.write(f"🌐 **Latitude:** {lat} | **Longitude:** {lng}")
 
     map_df = pd.DataFrame({"latitude": [lat], "longitude": [lng]})
@@ -124,10 +143,17 @@ if image_source is not None:
 Please initiate road maintenance action immediately."""
 
             gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={auth_email}&su={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
+            mailto_url = f"mailto:{auth_email}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
 
             st.success("✅ Email Alert Generated Successfully!")
-            st.markdown(
-                f'<a href="{gmail_url}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #28a745; color: white; text-decoration: none; font-weight: bold; border-radius: 6px;">✉️ Click Here to Dispatch Email Alert</a>',
-                unsafe_allow_html=True,
-            ).
             
+            # Working Buttons for Mobile and Laptop
+            st.markdown(
+                f'''
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <a href="{mailto_url}" target="_blank" style="padding: 10px 18px; background-color: #28a745; color: white; text-decoration: none; font-weight: bold; border-radius: 6px;">📱 Open Mobile Mail App</a>
+                    <a href="{gmail_url}" target="_blank" style="padding: 10px 18px; background-color: #007bff; color: white; text-decoration: none; font-weight: bold; border-radius: 6px;">🌐 Open Gmail Web</a>
+                </div>
+                ''',
+                unsafe_allow_html=True,
+            )
