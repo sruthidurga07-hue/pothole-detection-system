@@ -1,7 +1,7 @@
 streamlit
-ulralytics--extra
 pillow
 pandas
 geopy
 twilio
 opencv-python-headles
+ultralytics
