@@ -40,13 +40,17 @@ def get_gps_data(image):
         exif_data = image._getexif()
         if not exif_data:
             return None, None
+
         gps_info = {}
+
         for tag, value in exif_data.items():
             decoded = TAGS.get(tag, tag)
+
             if decoded == "GPSInfo":
                 for g_tag in value:
                     g_decoded = GPSTAGS.get(g_tag, g_tag)
                     gps_info[g_decoded] = value[g_tag]
+
         if not gps_info:
             return None, None
 
@@ -55,22 +59,30 @@ def get_gps_data(image):
             return d + (m / 60.0) + (s / 3600.0)
 
         lat = convert_to_degrees(gps_info["GPSLatitude"])
+
         if gps_info.get("GPSLatitudeRef") != "N":
             lat = -lat
+
         lng = convert_to_degrees(gps_info["GPSLongitude"])
+
         if gps_info.get("GPSLongitudeRef") != "E":
             lng = -lng
+
         return round(lat, 6), round(lng, 6)
+
     except Exception:
         return None, None
 
+
 # 3. UI - Input Selection
 st.subheader("📸 Choose Input Method")
+
 option = st.radio(
     "Select how to provide the image:", ("Upload File", "Use Camera")
 )
 
 image_source = None
+
 if option == "Upload File":
     image_source = st.file_uploader(
         "Choose an image...", type=["jpg", "jpeg", "png"]
@@ -78,8 +90,11 @@ if option == "Upload File":
 else:
     image_source = st.camera_input("Take a photo of the pothole")
 
+
 if image_source is not None:
+
     image = Image.open(image_source)
+
     col1, col2 = st.columns(2)
 
     with col1:
@@ -88,10 +103,10 @@ if image_source is not None:
 
     # YOLO Detection
     results = model(image)
+
     res_plotted = results[0].plot()
+
     pothole_count = len(results[0].boxes)
-    if pothole_count == 0:
-        pothole_count = 1  # Fallback demo count
 
     # Extract Location & Dynamic Area
     lat, lng = get_gps_data(image)
@@ -107,31 +122,51 @@ if image_source is not None:
         st.subheader("Detection")
         st.image(res_plotted, use_container_width=True)
 
-    # Editable Area Name Input (Gives you full flexibility during presentation)
-    area_name = st.text_input("📍 **Identified Location Area:**", value=default_area)
+    # Editable Area Name Input
+    area_name = st.text_input(
+        "📍 **Identified Location Area:**",
+        value=default_area
+    )
 
     # Dynamic Alert Banner
-    st.warning(
-        f"🚨 ALERT: {pothole_count} Pothole(s) detected in {area_name}!"
-    )
-    
+    if pothole_count > 0:
+        st.warning(
+            f"🚨 ALERT: {pothole_count} Pothole(s) detected in {area_name}!"
+        )
+    else:
+        st.success(
+            "✅ NO POTHOLES DETECTED"
+        )
+
     st.write(f"🌐 **Latitude:** {lat} | **Longitude:** {lng}")
 
-    map_df = pd.DataFrame({"latitude": [lat], "longitude": [lng]})
+    map_df = pd.DataFrame({
+        "latitude": [lat],
+        "longitude": [lng]
+    })
+
     st.map(map_df, zoom=13)
 
     # Report Dispatch Section
     st.subheader("📢 Report to Authority")
+
     auth_email = st.text_input(
         "Enter Authority Email Address (Receiver):",
         value="sruthi.durga07@gmail.com",
     )
 
     if st.button("🚀 Send Report"):
+
         if not auth_email:
             st.warning("⚠️ Please enter a receiver email address.")
+
         else:
-            subject = f"🚨 URGENT ROAD ALERT: {pothole_count} Potholes Detected in {area_name}"
+
+            subject = (
+                f"🚨 URGENT ROAD ALERT: "
+                f"{pothole_count} Potholes Detected in {area_name}"
+            )
+
             body = f"""Road Safety Pothole Alert System Report
 
 - Location Area: {area_name}
@@ -142,17 +177,44 @@ if image_source is not None:
 
 Please initiate road maintenance action immediately."""
 
-            gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={auth_email}&su={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
-            mailto_url = f"mailto:{auth_email}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
+            gmail_url = (
+                f"https://mail.google.com/mail/?view=cm&fs=1"
+                f"&to={auth_email}"
+                f"&su={urllib.parse.quote(subject)}"
+                f"&body={urllib.parse.quote(body)}"
+            )
+
+            mailto_url = (
+                f"mailto:{auth_email}"
+                f"?subject={urllib.parse.quote(subject)}"
+                f"&body={urllib.parse.quote(body)}"
+            )
 
             st.success("✅ Email Alert Generated Successfully!")
-            
+
             # Working Buttons for Mobile and Laptop
             st.markdown(
                 f'''
                 <div style="display: flex; gap: 10px; margin-top: 10px;">
-                    <a href="{mailto_url}" target="_blank" style="padding: 10px 18px; background-color: #28a745; color: white; text-decoration: none; font-weight: bold; border-radius: 6px;">📱 Open Mobile Mail App</a>
-                    <a href="{gmail_url}" target="_blank" style="padding: 10px 18px; background-color: #007bff; color: white; text-decoration: none; font-weight: bold; border-radius: 6px;">🌐 Open Gmail Web</a>
+                    <a href="{mailto_url}" target="_blank"
+                       style="padding: 10px 18px;
+                       background-color: #28a745;
+                       color: white;
+                       text-decoration: none;
+                       font-weight: bold;
+                       border-radius: 6px;">
+                       📱 Open Mobile Mail App
+                    </a>
+
+                    <a href="{gmail_url}" target="_blank"
+                       style="padding: 10px 18px;
+                       background-color: #007bff;
+                       color: white;
+                       text-decoration: none;
+                       font-weight: bold;
+                       border-radius: 6px;">
+                       🌐 Open Gmail Web
+                    </a>
                 </div>
                 ''',
                 unsafe_allow_html=True,
